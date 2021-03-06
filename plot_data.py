@@ -4,16 +4,36 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
-from scripts.math_functions import gaussian, exponential, exponentially_decaying_gaussian, exponentially_decaying_cosine, scale_values_to_unity, exponentially_decaying_sine
+from scripts.math_functions import gaussian, exponential, exponentially_decaying_gaussian, exponentially_decaying_cosine, scale_values_to_unity, exponentially_decaying_sine, linear_function
 from scripts.data_handling import compute_background_intensity, adjust_intensity, trim_data, read_data, average_data
 
 
+def plot_data_voltage_frequency_correlation(x_values, y_values):
+	popt = curve_fit(linear_function, x_values, y_values)
+	slope, interceipt = popt[0]
+
+	y_values_fit = linear_function(x_values, slope, interceipt)
+
+	plt.plot(x_values, y_values, 'o-', label='Measured Data', color="navy")
+	plt.plot(x_values, y_values_fit, '*',
+			 label=f'Fit Data with y = {slope:.2f} $\cdot$ x [ MHz/V] + {interceipt:.2f} [MHz]', color="darkred")
+
+	plt.grid()
+
+	plt.xlabel("Voltage [V]")
+	plt.ylabel("Frequency [MHz]")
+
+	plt.legend()
+
+	plt.show()
+
+
 def plot_data(x_values, y_values, fit_function):
-	plt.plot(x_values, y_values, 'o-', label='Measured Data')
+	plt.plot(x_values, y_values, 'o-', label='Measured Data', color="navy")
 
 	try:
-		background = compute_background_intensity(intensity_values=y_values, frequency_values=x_values, frequency_limit=2750)
-	except ZeroDivisionError:
+		background = compute_background_intensity(intensity_values=y_values, frequency_values=x_values, frequency_limit=[0, 2750])
+	except Exception:
 		background = 4718883.78
 
 	y_values = adjust_intensity(intensity_values=y_values, ground_level=background)
@@ -28,7 +48,7 @@ def plot_data(x_values, y_values, fit_function):
 
 	y_values = adjust_intensity(intensity_values=y_values, ground_level=background)
 
-	plt.plot(values_x_filtered, y_values, '*:', label='Gaussian Fit')
+	plt.plot(values_x_filtered, y_values, '*:', label='Gaussian Fit', color="darkred")
 
 	plt.legend()
 	plt.grid()
@@ -396,12 +416,13 @@ def plot_data_echo_50ns(x_values, y_values):
 
 
 def main():
-	# voltage, frequency, intensity = read_data("data/odmr_118")
+	voltage, frequency, intensity = read_data("data/odmr_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
-	#
+	plot_data_voltage_frequency_correlation(voltage, frequency)
+
 	# voltage, frequency, intensity = read_data("data/odmr2_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
-	#
+
 	# voltage, frequency, intensity = read_data("data/odmr_zoom_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
 
@@ -414,8 +435,8 @@ def main():
 	# plot_data_echo(time, intensity)
 	# time, intensity = read_data("data/Echo_118", data_format="time")
 
-	time, intensity = read_data("data/Echo_50ns_118", data_format="time")
-	plot_data_echo_50ns(time, intensity)
+	# time, intensity = read_data("data/Echo_50ns_118", data_format="time")
+	# plot_data_echo_50ns(time, intensity)
 
 
 if __name__ == "__main__":

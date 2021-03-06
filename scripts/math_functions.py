@@ -27,3 +27,8 @@ def scale_values_to_unity(y_values, request_max=False):
 		reference_value = max(y_values)
 	normalization = 1 / reference_value
 	return normalization
+
+
+def linear_function(x, slope, interceipt):
+	return x * slope + interceipt
+
