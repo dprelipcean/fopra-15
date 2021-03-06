@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
-from scripts.math_functions import gaussian, exponential, exponentially_decaying_gaussian, exponentially_decaying_sinusoid, scale_values_to_unity
+from scripts.math_functions import gaussian, exponential, exponentially_decaying_gaussian, exponentially_decaying_cosine, scale_values_to_unity, exponentially_decaying_sine
 from scripts.data_handling import compute_background_intensity, adjust_intensity, trim_data, read_data, average_data
 
 
@@ -65,7 +65,7 @@ def plot_data_rabi(x_values, y_values):
 	x_values_average_peaks = x_values_average[1:]
 	y_values_measured_minus_fit_peaks = y_values_measured_minus_fit[1:]
 
-	popt_decaying_sinusoid = curve_fit(exponentially_decaying_sinusoid, x_values_average_peaks, y_values_measured_minus_fit_peaks, p0=[60, 200, 0.015])
+	popt_decaying_sinusoid = curve_fit(exponentially_decaying_cosine, x_values_average_peaks, y_values_measured_minus_fit_peaks, p0=[60, 200, 0.015])
 	omega, decay_time, amplitude = popt_decaying_sinusoid[0]
 	print(omega, decay_time, amplitude)
 
@@ -74,7 +74,7 @@ def plot_data_rabi(x_values, y_values):
 	x_values_average_peaks = np.linspace(0, 200, 200)
 
 	# print(x_values_average_peaks)
-	y_values_measured_minus_fit_peaks = exponentially_decaying_sinusoid(x_values_average_peaks, omega, decay_time, amplitude)
+	y_values_measured_minus_fit_peaks = exponentially_decaying_cosine(x_values_average_peaks, omega, decay_time, amplitude)
 	# print(y_values_measured_minus_fit_peaks)
 
 	normalization = scale_values_to_unity(y_values_measured_minus_fit_peaks)
@@ -108,7 +108,7 @@ def plot_data_rabi(x_values, y_values):
 	plt.plot(x_values_average, y_values_measured_minus_fit, "o", linestyle="dashed", color="navy",
 				label=f"Measured data minus exponential Fit with decay time {decay_length:.2f}")
 	plt.plot(x_values_average_peaks, y_values_measured_minus_fit_peaks, color="darkred",
-				label=f"Sinusoidal function with time period {omega:.2f} s and decaying exponential {decay_time:.2f} s")
+				label=f"Cosine function with time period {omega:.2f} s and decaying exponential {decay_time:.2f} s")
 
 	plt.hlines(0, x_values_average_peaks[0], x_values_average_peaks[-1], linestyles=":")
 
@@ -128,6 +128,72 @@ def plot_data_rabi(x_values, y_values):
 	plt.show()
 
 
+def plot_data_ramsey(x_values, y_values):
+	number_of_measurements_per_data_point, x_values_average, y_values_average, y_values_average_std \
+		= average_data(x_values, y_values)
+
+	background = compute_background_intensity(intensity_values=y_values_average, frequency_values=x_values_average, frequency_limit=[125, 200], request_minimum=False)
+
+	y_values_average_background_subtracted = adjust_intensity(intensity_values=y_values_average, ground_level=background, reverse=False)
+
+	# Compute Peaks
+	popt_decaying_sinusoid = curve_fit(exponentially_decaying_sine, x_values_average, y_values_average_background_subtracted, p0=[60, 200, 0.015, 10])
+	omega, decay_time, amplitude, phase_shift = popt_decaying_sinusoid[0]
+	print(omega, decay_time, amplitude, phase_shift)
+
+	# Add x value at 0
+	# x_values_average_peaks = np.insert(x_values_average_peaks, 0, 0.05)
+	x_values_fit = np.linspace(0, 200, 200)
+
+	y_values_fit = exponentially_decaying_sine(x_values_fit, omega, decay_time, amplitude, phase_shift)
+	# y_values_fit = adjust_intensity(intensity_values=y_values_fit, ground_level=-background, reverse=False)
+
+	normalization = scale_values_to_unity(y_values_fit, request_max=True)
+	y_values_fit *= normalization
+
+	fig, ax1 = plt.subplots(num=None, figsize=(8, 6), dpi=80, facecolor='w', edgecolor='k')
+	ax2 = ax1.twinx()
+
+	ax1.plot(x_values, y_values, 'o',
+			 label=f'Measured Data with {number_of_measurements_per_data_point} measurements per data point', alpha=0.2)
+	ax1.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
+				 label='Average Measured Data with 1 Standard Deviation Errors')
+	ax2.plot(x_values_fit, y_values_fit, '*', linestyle="dashed", color="darkred",
+				label=f"Cosine function with time period {omega:.2f} s and decaying exponential {decay_time:.2f} s")
+
+	handles_ax1, labels_ax1 = ax1.get_legend_handles_labels()
+	handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
+	handles = handles_ax1 + handles_ax2
+	labels = labels_ax1 + labels_ax2
+	order = [0, 1, 2]
+	plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+
+
+	ax1.set_xlabel("Free evolution time $\\tau$ [s]")
+	ax1.set_ylabel("Intensity [counts]", color="navy")
+	# ax1.legend()
+
+	ax2.set_ylim(-1.05, 1.05)
+	ax2.set_ylabel("Spin z-component", color="darkred")
+	# ax2.legend()
+
+	ax2.hlines(0, x_values_fit[0], x_values_fit[-1], linestyles=":")
+	#
+	plt.vlines(phase_shift, -1, 1, linestyles=":")
+	plt.text(phase_shift, -1, "Phase shift $\phi$", fontsize=14, verticalalignment='top')
+	plt.vlines(phase_shift+omega/2, -1, 1, linestyles=":")
+	plt.text(phase_shift+omega/2, -1, "$\\tau_{\pi}$", fontsize=14, verticalalignment='top')
+	plt.vlines(phase_shift+omega, -1, 1, linestyles=":")
+	plt.text(phase_shift+omega, -1, "$\\tau_{2\pi}$", fontsize=14, verticalalignment='top')
+	plt.vlines(phase_shift+omega*3/2, -1, 1, linestyles=":")
+	plt.text(phase_shift+omega*3/2, -1, "$\\tau_{3\pi}$", fontsize=14, verticalalignment='top')
+	plt.vlines(phase_shift+omega*2, -1, 1, linestyles=":")
+	plt.text(phase_shift+omega*2, -1, "$\\tau_{4\pi}$", fontsize=14, verticalalignment='top')
+
+	plt.show()
+
+
+
 def main():
 	# voltage, frequency, intensity = read_data("data/odmr_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
@@ -138,8 +204,11 @@ def main():
 	# voltage, frequency, intensity = read_data("data/odmr_zoom_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
 
-	time, intensity = read_data("data/Rabi_118", data_format="time")
-	plot_data_rabi(time, intensity, fit_function=exponential)
+	# time, intensity = read_data("data/Rabi_118", data_format="time")
+	# plot_data_rabi(time, intensity)
+
+	time, intensity = read_data("data/Ramsey_118", data_format="time")
+	plot_data_ramsey(time, intensity)
 
 
 if __name__ == "__main__":
