@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from scipy.stats import linregress
 from scipy.optimize import curve_fit
 
 
@@ -9,14 +10,15 @@ from scripts.data_handling import compute_background_intensity, adjust_intensity
 
 
 def plot_data_voltage_frequency_correlation(x_values, y_values):
-	popt = curve_fit(linear_function, x_values, y_values)
-	slope, interceipt = popt[0]
-
-	y_values_fit = linear_function(x_values, slope, interceipt)
+	result = linregress(x_values, y_values)
+	print(result.slope, result.intercept, result.rvalue)
+	y_values_fit = linear_function(x_values, result.slope, result.intercept)
 
 	plt.plot(x_values, y_values, 'o-', label='Measured Data', color="navy")
 	plt.plot(x_values, y_values_fit, '*',
-			 label=f'Fit Data with y = {slope:.2f} $\cdot$ x [ MHz/V] + {interceipt:.2f} [MHz]', color="darkred")
+			 label=f'Linear Fit with\n'
+				   f'y = {result.slope:.2f} $\cdot$ x [MHz/V] + {result.intercept:.2f} [MHz]\n'
+				   f'and $R^2=${result.rvalue:.5f}', color="darkred")
 
 	plt.grid()
 
