@@ -319,11 +319,79 @@ def plot_data_echo(x_values, y_values):
 	plt.show()
 
 
-def test_function():
-	x_values = np.linspace(0, 100, 100)
-	y_values = exponentially_decaying_gaussian(x_values, 50, 30, 10, 60, 1, 5)
 
-	plt.plot(x_values, y_values, 'o-')
+
+def plot_data_echo_50ns(x_values, y_values):
+	number_of_measurements_per_data_point, x_values_average, y_values_average, y_values_average_std \
+		= average_data(x_values, y_values)
+
+	background = compute_background_intensity(intensity_values=y_values_average, frequency_values=x_values_average, frequency_limit=[24, 76], request_minimum=True)
+	print(background)
+
+	y_values_average_background_subtracted = adjust_intensity(intensity_values=y_values_average, ground_level=background, reverse=False)
+	# print(y_values_average_background_subtracted)
+
+	popt_gaussian = curve_fit(gaussian, x_values_average, y_values_average_background_subtracted,
+									   p0=[50, 30, 1], sigma=y_values_average_std)
+	mu, sig, amplitude = popt_gaussian[0]
+	print(mu, sig, amplitude)
+
+	x_values_fit = np.linspace(24, 76, 52)
+	y_values_gaussian_fit = gaussian(x_values_fit, mu, sig, amplitude)
+	# print(y_values_gaussian_fit)
+
+	y_values_gaussian_fit = adjust_intensity(intensity_values=y_values_gaussian_fit, ground_level=-background, reverse=False)
+
+	# normalization = scale_values_to_unity(y_values_gaussian_fit, request_max=True)
+	# y_values_gaussian_fit *= normalization
+
+
+	# Compute Peaks
+	# popt_decaying_sinusoid = curve_fit(exponentially_decaying_gaussian, x_values_average, y_values_average_background_subtracted,
+	# 								   p0=[100, 20, 0.005, 60, 0.2, 20])
+	# mu, sig, amplitude_gaussian, decay_length, amplitude_exponential, shift = popt_decaying_sinusoid[0]
+	# print(mu, sig, amplitude_gaussian, decay_length, amplitude_exponential, shift)
+
+	# x_values_fit = x_values_average
+	# x_values_fit = np.linspace(0, 200, 200)
+
+	# y_values_fit = exponentially_decaying_gaussian(x_values_fit, mu, sig, amplitude_gaussian, decay_length, amplitude_exponential, shift)
+	# y_values_fit = adjust_intensity(intensity_values=y_values_fit, ground_level=-background, reverse=False)
+
+	# normalization = scale_values_to_unity(y_values_fit, request_max=True)
+	# y_values_fit *= normalization
+
+	fig, ax1 = plt.subplots(num=None, figsize=(8, 6), dpi=80, facecolor='w', edgecolor='k')
+	ax2 = ax1.twinx()
+
+	ax1.plot(x_values, y_values, 'o',
+			 label=f'Measured Data with {number_of_measurements_per_data_point} measurements per data point', alpha=0.2)
+	ax1.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
+				 label='Average Measured Data with 1 Standard Deviation Errors')
+	ax1.plot(x_values_fit, y_values_gaussian_fit, '*', linestyle="dashed", color="darkred",
+				label=f"Gaussian function  peaked at {mu:.3f} s with std {sig:.3f} s")
+
+	handles_ax1, labels_ax1 = ax1.get_legend_handles_labels()
+	handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
+	handles = handles_ax1 + handles_ax2
+	labels = labels_ax1 + labels_ax2
+	order = [0, 2, 1]
+
+	plt.legend([handles[idx] for idx in order],
+			   [labels[idx] for idx in order],
+			   loc=4)
+
+	ax1.set_xlabel("Free evolution time $\\tau$ [s]")
+	ax1.set_ylabel("Intensity [counts]", color="navy")
+	# ax1.legend()
+
+	# ax2.set_ylim(-1.05, 1.05)
+	ax2.set_ylabel("Spin z-component [a.u]", color="darkred")
+	# ax2.legend()
+
+	ax2.vlines(mu, 0, 1, linestyles=":")
+	plt.text(mu, 0.3, f"$\\tau_{{1}}$={mu:.3f} s", fontsize=10, verticalalignment='top')
+
 	plt.show()
 
 
@@ -343,8 +411,11 @@ def main():
 	# time, intensity = read_data("data/Ramsey_118", data_format="time")
 	# plot_data_ramsey(time, intensity)
 
-	time, intensity = read_data("data/Echo_118", data_format="time")
-	plot_data_echo(time, intensity)
+	# plot_data_echo(time, intensity)
+	# time, intensity = read_data("data/Echo_118", data_format="time")
+
+	time, intensity = read_data("data/Echo_50ns_118", data_format="time")
+	plot_data_echo_50ns(time, intensity)
 
 
 if __name__ == "__main__":

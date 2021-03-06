@@ -35,7 +35,7 @@ def adjust_intensity(intensity_values, ground_level, reverse=True):
 		values_refined = [ground_level - value for value in intensity_values]
 	else:
 		values_refined = [value - ground_level for value in intensity_values]
-	return values_refined
+	return np.asarray(values_refined)
 
 
 def compute_background_intensity(intensity_values, frequency_values, frequency_limit, request_minimum=False):
