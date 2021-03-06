@@ -5,20 +5,20 @@ def gaussian(x, mu, sig, amplitude):
 	return amplitude * np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
 
-def exponential(x, decay_length, amplitude):
-	return amplitude * np.exp(-x / decay_length)
+def exponential(x, decay_length, amplitude, shift):
+	return amplitude * np.exp(-1 * (x-shift) / decay_length)
 
 
-def exponentially_decaying_gaussian(x, mu, sig, amplitude_gaussian, decay_length, amplitude_exponential):
-	return gaussian(x, mu, sig, amplitude_gaussian) * exponential(x, decay_length, amplitude_exponential)
+def exponentially_decaying_gaussian(x, mu, sig, amplitude_gaussian, decay_length, amplitude_exponential, shift):
+	return gaussian(x + shift, mu, sig, amplitude_gaussian) * exponential(x, decay_length, amplitude_exponential)
 
 
-def exponentially_decaying_cosine(x, omega, decay_time, amplitude):
-	return amplitude * np.cos(x * 2 * np.pi / omega) * exponential(x, decay_time, 1)
+def exponentially_decaying_cosine(x, omega, decay_time, amplitude, x_shift):
+	return amplitude * np.cos(x * 2 * np.pi / omega) * exponential(x, decay_time, 1, x_shift)
 
 
-def exponentially_decaying_sine(x, omega, decay_time, amplitude, phase_shift):
-	return amplitude * np.cos(x * 2 * np.pi / omega + phase_shift) * exponential(x, decay_time, 1)
+def exponentially_decaying_sine(x, omega, decay_time, amplitude, phase_shift, x_shift):
+	return amplitude * np.cos(x * 2 * np.pi / omega + phase_shift) * exponential(x, decay_time, 1, x_shift)
 
 
 def scale_values_to_unity(y_values, request_max=False):
