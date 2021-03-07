@@ -1,3 +1,4 @@
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -31,6 +32,9 @@ def plot_data_voltage_frequency_correlation(x_values, y_values):
 
 
 def plot_data(x_values, y_values, fit_function):
+
+	plt.figure(num=None, figsize=(8, 6), dpi=80, facecolor='w', edgecolor='k')
+
 	plt.plot(x_values, y_values, 'o-', label='Measured Data', color="navy")
 
 	try:
@@ -50,7 +54,8 @@ def plot_data(x_values, y_values, fit_function):
 
 	y_values = adjust_intensity(intensity_values=y_values, ground_level=background)
 
-	plt.plot(values_x_filtered, y_values, '*:', label='Gaussian Fit', color="darkred")
+	plt.plot(values_x_filtered, y_values, '*:',  color="darkred",
+			 label=f'Gaussian Fit with $\mathcal{{N}}(\mu={function_parameters[0]:.2f}, \sigma^2={function_parameters[1]:.2f})$')
 
 	plt.legend()
 	plt.grid()
@@ -64,6 +69,7 @@ def plot_data(x_values, y_values, fit_function):
 def plot_data_rabi(x_values, y_values):
 	number_of_measurements_per_data_point, x_values_average, y_values_average, y_values_average_std \
 		= average_data(x_values, y_values)
+	y_values_average_std_relative = y_values_average_std/y_values_average
 
 	background = compute_background_intensity(intensity_values=y_values_average, frequency_values=x_values_average, frequency_limit=[125, 200], request_minimum=True)
 
@@ -71,11 +77,13 @@ def plot_data_rabi(x_values, y_values):
 
 	# print(x_values_average, y_values_average_background_subtracted)
 
-	popt_measured_exponentical_decay = curve_fit(exponential, x_values_average, y_values_average_background_subtracted)
+	popt_measured_exponentical_decay = curve_fit(exponential, x_values_average, y_values_average_background_subtracted,
+												 p0=[50, 1 , 0],
+												 sigma=y_values_average)
 
-	decay_length, amplitude = popt_measured_exponentical_decay[0]
-	print(decay_length, amplitude)
-	y_values_fit = exponential(x_values_average, decay_length, amplitude)
+	decay_length, amplitude, shift = popt_measured_exponentical_decay[0]
+	print(decay_length, amplitude, shift)
+	y_values_fit = exponential(x_values_average, decay_length, amplitude, shift)
 
 	y_values_fit = adjust_intensity(intensity_values=y_values_fit, ground_level=-background, reverse=False)
 
@@ -84,25 +92,28 @@ def plot_data_rabi(x_values, y_values):
 	y_values_measured_minus_fit = y_values_average - y_values_fit
 
 	# Disregard first point as statistical fluctuation
-	x_values_average_peaks = x_values_average[1:]
-	y_values_measured_minus_fit_peaks = y_values_measured_minus_fit[1:]
+	x_values_average_peaks = x_values_average[1:11]
+	y_values_measured_minus_fit_peaks = y_values_measured_minus_fit[1:11]
+	y_values_average_peaks = y_values_average[1:11]
 
-	popt_decaying_sinusoid = curve_fit(exponentially_decaying_cosine, x_values_average_peaks, y_values_measured_minus_fit_peaks, p0=[60, 200, 0.015])
-	omega, decay_time, amplitude = popt_decaying_sinusoid[0]
-	print(omega, decay_time, amplitude)
+	popt_decaying_sinusoid = curve_fit(exponentially_decaying_cosine, x_values_average_peaks, y_values_measured_minus_fit_peaks,
+									   p0=[60, 200, 0.015, 5], sigma=y_values_average_peaks)
+	omega, decay_time, amplitude, x_shift = popt_decaying_sinusoid[0]
+	print(omega, decay_time, amplitude, x_shift)
 
 	# Add x value at 0
 	# x_values_average_peaks = np.insert(x_values_average_peaks, 0, 0.05)
 	x_values_average_peaks = np.linspace(0, 200, 200)
 
 	# print(x_values_average_peaks)
-	y_values_measured_minus_fit_peaks = exponentially_decaying_cosine(x_values_average_peaks, omega, decay_time, amplitude)
+	y_values_measured_minus_fit_peaks = exponentially_decaying_cosine(x_values_average_peaks, omega, decay_time, amplitude, x_shift)
 	# print(y_values_measured_minus_fit_peaks)
 
 	normalization = scale_values_to_unity(y_values_measured_minus_fit_peaks)
 
 	y_values_measured_minus_fit *= normalization
 	y_values_measured_minus_fit_peaks *= normalization
+	y_values_average_std_fit = y_values_average_std * normalization
 
 	plt.figure(num=None, figsize=(8, 6), dpi=80, facecolor='w', edgecolor='k')
 
@@ -111,7 +122,7 @@ def plot_data_rabi(x_values, y_values):
 	plt.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
 				 label='Average Measured Data with 1 Standard Deviation Errors')
 	plt.plot(x_values_average, y_values_fit, '*', linestyle="dashed", color="darkred",
-				label=f'Exponential Fit with decay time {decay_length:.2f} s')
+				label=f'Exponential Fit with decay time {decay_length:.2f} ns')
 
 	handles, labels = plt.gca().get_legend_handles_labels()
 	print(labels)
@@ -120,17 +131,20 @@ def plot_data_rabi(x_values, y_values):
 
 	plt.grid()
 
-	plt.xlabel("Pulse length $T_p$ [s]")
+	plt.xlabel("Pulse length $T_p$ [ns]")
 	plt.ylabel("Intensity [counts]")
 
 	plt.show()
 
+	# Spin plots
 	plt.figure(num=None, figsize=(8, 6), dpi=80, facecolor='w', edgecolor='k')
 
-	plt.plot(x_values_average, y_values_measured_minus_fit, "o", linestyle="dashed", color="navy",
-				label=f"Measured data minus exponential Fit with decay time {decay_length:.2f}")
+	plt.errorbar(x_values_average, y_values_measured_minus_fit, yerr=y_values_average_std_fit, marker="o",
+				 linestyle="dashed", color="navy", capsize=5,
+				label=f"Measured data minus exponential Fit with decay time {decay_length:.2f} ns")
 	plt.plot(x_values_average_peaks, y_values_measured_minus_fit_peaks, color="darkred",
-				label=f"Cosine function with time period {omega:.2f} s and decaying exponential {decay_time:.2f} s")
+				label=f"$\cos(\\tau \cdot {{omega:.2f}}ns) \cdot \exp(\\tau/{{decay_time:.2f}} ns)$")
+
 
 	plt.hlines(0, x_values_average_peaks[0], x_values_average_peaks[-1], linestyles=":")
 
@@ -143,10 +157,10 @@ def plot_data_rabi(x_values, y_values):
 	plt.vlines(omega*2, -1, 1, linestyles=":")
 	plt.text(omega*2, 1, "$T_{4\pi}$", fontsize=14, verticalalignment='top')
 
-	plt.legend()
+	plt.legend(loc=8)
 	# plt.grid()
 	plt.ylabel("Spin z-component")
-	plt.xlabel("Pulse length $T_p$ [s]")
+	plt.xlabel("Pulse length $T_p$ [ns]")
 	plt.show()
 
 
@@ -159,15 +173,19 @@ def plot_data_ramsey(x_values, y_values):
 	y_values_average_background_subtracted = adjust_intensity(intensity_values=y_values_average, ground_level=background, reverse=False)
 
 	# Compute Peaks
-	popt_decaying_sinusoid = curve_fit(exponentially_decaying_sine, x_values_average, y_values_average_background_subtracted, p0=[60, 200, 0.015, 10])
-	omega, decay_time, amplitude, phase_shift = popt_decaying_sinusoid[0]
-	print(omega, decay_time, amplitude, phase_shift)
+	x_values_to_fit = x_values_average[:13]
+	y_values_to_fit = y_values_average_background_subtracted[:13]
+
+	popt_decaying_sinusoid = curve_fit(exponentially_decaying_sine, x_values_to_fit, y_values_to_fit,
+									   p0=[49.23, 51.55, 0.015, 0, 0])
+	omega, decay_time, amplitude, phase_shift, x_shift = popt_decaying_sinusoid[0]
+	print(omega, decay_time, amplitude, phase_shift, x_shift)
 
 	# Add x value at 0
 	# x_values_average_peaks = np.insert(x_values_average_peaks, 0, 0.05)
 	x_values_fit = np.linspace(0, 200, 200)
 
-	y_values_fit = exponentially_decaying_sine(x_values_fit, omega, decay_time, amplitude, phase_shift)
+	y_values_fit = exponentially_decaying_sine(x_values_fit, omega, decay_time, amplitude, phase_shift, x_shift)
 	# y_values_fit = adjust_intensity(intensity_values=y_values_fit, ground_level=-background, reverse=False)
 
 	normalization = scale_values_to_unity(y_values_fit, request_max=True)
@@ -181,35 +199,38 @@ def plot_data_ramsey(x_values, y_values):
 	ax1.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
 				 label='Average Measured Data with 1 Standard Deviation Errors')
 	ax2.plot(x_values_fit, y_values_fit, '*', linestyle="dashed", color="darkred",
-				label=f"Cosine function with time period {omega:.2f} s and decaying exponential {decay_time:.2f} s")
+				label=f"$\sin(\\tau \cdot 2\pi/{omega:.2f}$ ns) $\cdot \exp(-\\tau/{decay_time:.2f}$ ns)")
 
 	handles_ax1, labels_ax1 = ax1.get_legend_handles_labels()
 	handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
 	handles = handles_ax1 + handles_ax2
 	labels = labels_ax1 + labels_ax2
 	order = [0, 1, 2]
-	plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+	plt.legend([handles[idx] for idx in order],
+			   [labels[idx] for idx in order],
+			   loc=4)
 
-	ax1.set_xlabel("Free evolution time $\\tau$ [s]")
+	ax1.set_xlabel("Free evolution time $\\tau$ [ns]")
 	ax1.set_ylabel("Intensity [counts]", color="navy")
+	ax1.set_ylim(-1.15/normalization+background, 1.20/normalization+background)
 	# ax1.legend()
 
-	ax2.set_ylim(-1.05, 1.05)
+	ax2.set_ylim(-1.15, 1.15)
 	ax2.set_ylabel("Spin z-component", color="darkred")
 	# ax2.legend()
 
 	ax2.hlines(0, x_values_fit[0], x_values_fit[-1], linestyles=":")
 	#
-	plt.vlines(phase_shift, -1, 1, linestyles=":")
-	plt.text(phase_shift, -1, "Phase shift $\phi$", fontsize=14, verticalalignment='top')
+	# plt.vlines(phase_shift, -1, 1, linestyles=":")
+	# plt.text(phase_shift, -1, "Phase shift $\phi$", fontsize=14, verticalalignment='top')
 	plt.vlines(phase_shift+omega/2, -1, 1, linestyles=":")
-	plt.text(phase_shift+omega/2, -1, "$\\tau_{\pi}$", fontsize=14, verticalalignment='top')
+	plt.text(phase_shift+omega/2, 1, "$\\tau_{\pi}$", fontsize=14, verticalalignment='top')
 	plt.vlines(phase_shift+omega, -1, 1, linestyles=":")
-	plt.text(phase_shift+omega, -1, "$\\tau_{2\pi}$", fontsize=14, verticalalignment='top')
+	plt.text(phase_shift+omega, 1, "$\\tau_{2\pi}$", fontsize=14, verticalalignment='top')
 	plt.vlines(phase_shift+omega*3/2, -1, 1, linestyles=":")
-	plt.text(phase_shift+omega*3/2, -1, "$\\tau_{3\pi}$", fontsize=14, verticalalignment='top')
+	plt.text(phase_shift+omega*3/2, 1, "$\\tau_{3\pi}$", fontsize=14, verticalalignment='top')
 	plt.vlines(phase_shift+omega*2, -1, 1, linestyles=":")
-	plt.text(phase_shift+omega*2, -1, "$\\tau_{4\pi}$", fontsize=14, verticalalignment='top')
+	plt.text(phase_shift+omega*2, 1, "$\\tau_{4\pi}$", fontsize=14, verticalalignment='top')
 
 	plt.show()
 
@@ -275,16 +296,18 @@ def plot_data_echo(x_values, y_values):
 	ax1.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
 				 label='Average Measured Data with 1 Standard Deviation Errors')
 	ax1.plot(x_values_average, y_values_fit, '*', linestyle="dashed", color="darkred",
-				label=f"Exponential with decay time {decay_length:.2f} s")
+				label=f"Exponential with decay time {decay_length:.2f} ns")
 
 	handles_ax1, labels_ax1 = ax1.get_legend_handles_labels()
 	handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
 	handles = handles_ax1 + handles_ax2
 	labels = labels_ax1 + labels_ax2
 	order = [0, 2, 1]
-	plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+	plt.legend([handles[idx] for idx in order],
+			   [labels[idx] for idx in order],
+			   loc=3)
 
-	ax1.set_xlabel("Free evolution time $\\tau$ [s]")
+	ax1.set_xlabel("Free evolution time $\\tau$ [ns]")
 	ax1.set_ylabel("Intensity [counts]", color="navy")
 	# ax1.legend()
 
@@ -314,11 +337,11 @@ def plot_data_echo(x_values, y_values):
 	ax1.errorbar(x_values_average, y_values_average-y_values_fit, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
 				 label='Average Measured Data with 1 Standard Deviation Errors')
 	ax2.plot(x_values_fit, y_values_gaussian_fit, '*', linestyle="dashed", color="darkred",
-				label=f"Gaussian function  peaked at {mu:.3f} s with std {sig:.3f} s")
+				label=f"Gaussian function  peaked at {mu:.3f} ns with std {sig:.3f} ns")
 
 	ylim = [-0.3, 1.5]
 	ax1.set_ylim(ylim[0]/normalization, ylim[1]/normalization)
-	ax1.set_xlabel("Free evolution time $\\tau_{2}$ [s]")
+	ax1.set_xlabel("Free evolution time $\\tau_{2}$ [ns]")
 	ax1.set_ylabel("Intensity [counts]", color="navy")
 	# ax1.legend()
 
@@ -336,7 +359,9 @@ def plot_data_echo(x_values, y_values):
 	labels = labels_ax1 + labels_ax2
 	order = [0, 1]
 
-	plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+	plt.legend([handles[idx] for idx in order],
+			   [labels[idx] for idx in order],
+			   loc=3)
 
 	plt.show()
 
@@ -391,7 +416,7 @@ def plot_data_echo_50ns(x_values, y_values):
 	ax1.errorbar(x_values_average, y_values_average, yerr=y_values_average_std, marker="*", color="navy", capsize=5,
 				 label='Average Measured Data with 1 Standard Deviation Errors')
 	ax1.plot(x_values_fit, y_values_gaussian_fit, '*', linestyle="dashed", color="darkred",
-				label=f"Gaussian function  peaked at {mu:.3f} s with std {sig:.3f} s")
+				label=f"Gaussian function  peaked at {mu:.3f} ns with std {sig:.3f} s")
 
 	handles_ax1, labels_ax1 = ax1.get_legend_handles_labels()
 	handles_ax2, labels_ax2 = ax2.get_legend_handles_labels()
@@ -403,7 +428,7 @@ def plot_data_echo_50ns(x_values, y_values):
 			   [labels[idx] for idx in order],
 			   loc=4)
 
-	ax1.set_xlabel("Free evolution time $\\tau$ [s]")
+	ax1.set_xlabel("Free evolution time $\\tau$ [ns]")
 	ax1.set_ylabel("Intensity [counts]", color="navy")
 	# ax1.legend()
 
@@ -418,9 +443,9 @@ def plot_data_echo_50ns(x_values, y_values):
 
 
 def main():
-	voltage, frequency, intensity = read_data("data/odmr_118")
+	# voltage, frequency, intensity = read_data("data/odmr_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
-	plot_data_voltage_frequency_correlation(voltage, frequency)
+	# plot_data_voltage_frequency_correlation(voltage, frequency)
 
 	# voltage, frequency, intensity = read_data("data/odmr2_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
@@ -428,15 +453,15 @@ def main():
 	# voltage, frequency, intensity = read_data("data/odmr_zoom_118")
 	# plot_data(frequency, intensity, fit_function=gaussian)
 
-	# time, intensity = read_data("data/Rabi_118", data_format="time")
-	# plot_data_rabi(time, intensity)
-
+	time, intensity = read_data("data/Rabi_118", data_format="time")
+	plot_data_rabi(time, intensity)
+	#
 	# time, intensity = read_data("data/Ramsey_118", data_format="time")
 	# plot_data_ramsey(time, intensity)
-
-	# plot_data_echo(time, intensity)
+	# #
 	# time, intensity = read_data("data/Echo_118", data_format="time")
-
+	# plot_data_echo(time, intensity)
+	#
 	# time, intensity = read_data("data/Echo_50ns_118", data_format="time")
 	# plot_data_echo_50ns(time, intensity)
 
